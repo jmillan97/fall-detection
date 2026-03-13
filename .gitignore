@@ -1,4 +1,10 @@
 venv/
 __pycache__/
 *.keras
+*.h5
+*.pyc
 .vscode/
+data/raw/
+data/processed/
+src/sanity_check.py
+

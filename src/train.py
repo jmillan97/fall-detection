@@ -7,7 +7,7 @@ from tensorflow.keras import layers
 
 
 WINDOW_SIZE = 125
-N_CHANNELS = 6
+N_CHANNELS = 9
 BATCH_SIZE = 32
 EPOCHS = 50
 MODEL_PATH = "models/fall_detector.keras"

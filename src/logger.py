@@ -33,7 +33,8 @@ def record(port, baud, label, duration=None):
         #new csv
         writer = csv.writer(csvfile)
         writer.writerow([
-            "timestamp.ms", "waist_x", "waist_y", "waist_z", "thigh_x", "thigh_y", "thigh_z", "event_flag"
+            "timestamp.ms", "waist_x", "waist_y", "waist_z","waist_gx", 
+            "waist_gy", "waist_gz", "thigh_x", "thigh_y", "thigh_z", "event_flag"
         ])
         try:
             while True:
@@ -48,7 +49,7 @@ def record(port, baud, label, duration=None):
                     print(f"[stm32] {line}")
                     continue
                 values = line.split(',')
-                if len(values) != 8:
+                if len(values) != 11:
                     print(f"[WARN] Malformed line ({len(values)} cols): {line}")
                     continue
                 writer.writerow(values)
