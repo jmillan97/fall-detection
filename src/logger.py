@@ -3,6 +3,7 @@ import csv
 import time
 import os
 import argparse
+import socket
 from datetime import datetime
 
 def get_output_path(label):
@@ -24,7 +25,7 @@ def record(port, baud, label, duration=None):
         ser.reset_input_buffer()
 
     except serial.SerialException as e: 
-        print(f"[ERROR] Could not opent port: {e}")
+        print(f"[ERROR] Could not open port: {e}")
         print(" On WSL: check >> ls /dev/tty*")
         return
     sample_count = 0
@@ -39,7 +40,7 @@ def record(port, baud, label, duration=None):
         try:
             while True:
                 if duration and (time.time() - start_time) > duration:
-                    print(f"\n[LOGGER] DUration time limit reached ({duration}s)")
+                    print(f"\n[LOGGER] Duration time limit reached ({duration}s)")
                     break
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
 
@@ -57,7 +58,7 @@ def record(port, baud, label, duration=None):
                 if sample_count % 50 == 0:
                     elapsed = time.time() - start_time
                     hz = sample_count/elapsed
-                    print(f"[LOGGER] {sample_count} sampels | {elapsed:.1f}s | {hz:.1f} Hz", end='\r')
+                    print(f"[LOGGER] {sample_count} samples | {elapsed:.1f}s | {hz:.1f} Hz", end='\r')
         except KeyboardInterrupt:
             print(f"\n[LOGGER] Stopped")
         finally:
@@ -67,13 +68,90 @@ def record(port, baud, label, duration=None):
             print(f"\t Samples: {sample_count}")
             print(f"\t Duration: {elapsed:.1f}")
             print(f"\t Saved to: {output_path}")
+
+def record_wifi(host_ip, port, label, duration=None):
+    output_path = get_output_path(label)
+    print(f"[LOGGER] UDP mode - listening on {host_ip}: {port}")
+    print(f"[LOGGER] Writing to {output_path}")
+    print(f"[LOGGER] Press Ctrl+C to stop\n")
+    print(f"[LOGGER] Waiting on ESP32 data...")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(host_ip, port)
+    sock.settimeout(2)
+
+    sample_count = 0
+    start_time = time.time()
+    with open(output_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([
+            "timestamp_ms",
+            "waist_x", "waist_y", "waist_z",
+            "waist_gx", "waist_gy", "waist_gz",
+            "thigh_x", "thigh_y", "thigh_z",
+            "event_flag"
+        ])
+
+        try:
+            while True:
+                if duration and (time.time() - start_time) > duration:
+                    print(f"\n[LOGGER] Duration limit reached({duration}s)")
+                    break
+                try:
+                    data, addr = sock.recvfrom(256)
+                    line = data.decode('utf-8', errors='ignore').strip()
+
+                    if not line:
+                        continue
+                    if line.startswith('#'):
+                        print(f"[STM32] {line}")
+                        continue
+                    values = line.split(',')
+                    if len(values) != 11:
+                        print(f"[WARN] Malformed packet")
+                        continue
+
+                    writer.writerow(values)
+                    sample_count += 1
+                    if sample_count % 50 == 0:
+                        elapsed = time.time() - start_time
+                        hz = sample_count / elapsed
+                        print(f"[LOGGER] {sample_count} samples | {elapsed:.1f}s | {hz:.1f} Hz", end='\r')
+                except socket.timeout:
+                    print(f"\n[LOGGER] No data received")
+                    continue
+        except KeyboardInterrupt:
+            print(f"\n[LOGGER] Stopped")
+        finally:
+            sock.close()
+            elapsed = time.time() - start_time
+            print(f"\n[logger] Session complete")
+            print(f"         Samples  : {sample_count}")
+            print(f"         Duration : {elapsed:.1f}s")
+            print(f"         Avg rate : {sample_count / elapsed:.1f} Hz" if elapsed > 0 else "")
+            print(f"         Saved to : {output_path}")
+            
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="STM32 Fall Detection Data Logger")
     parser.add_argument('--port', default='/dev/ttyACM0', help='Serial port')
     parser.add_argument('--baud', default=115200, type=int, help='Baud rate')
     parser.add_argument('--label', default='session', help='Label for filename')
     parser.add_argument('--duration', default=None, type=float, help='Recording duration')
+    parser.add_argument('--wifi', action='store_true', help='Use WiFi UDP mode instead of serial')
+    parser.add_argument('--host', default='0.0.0.0', type=str, help='Host IP to listen on (wifi mode)')
+    parser.add_argument('--udp-port', default=5005, type=int, help='UDP port (wifi mode)')
+    
     args = parser.parse_args()
-    record(args.port, args.baud, args.label, args.duration)
+    if args.wifi:
+        record_wifi(
+            host_ip= args.host,
+            port = args.udp_port,
+            label = args.label,
+            duration = args.duration
+        )
+    else:
+        record(args.port, args.baud, args.label, args.duration)
 
 
