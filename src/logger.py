@@ -4,7 +4,9 @@ import time
 import os
 import argparse
 import socket
+import threading
 from datetime import datetime
+event_flag_pending = False
 
 def get_output_path(label):
     #create path for data
@@ -68,15 +70,29 @@ def record(port, baud, label, duration=None):
             print(f"\t Samples: {sample_count}")
             print(f"\t Duration: {elapsed:.1f}")
             print(f"\t Saved to: {output_path}")
+def keyboard_listener():
+    global event_flag_pending
+    while True:
+        try:    
+            input()
+            event_flag_pending = True
+            print("\n[LOGGER] Event flag set -- fall marked")
+        except Exception:
+            break #was getting an error Ctrl+C to quit
 
 def record_wifi(host_ip, port, label, duration=None):
+    global event_flag_pending
     output_path = get_output_path(label)
     print(f"[LOGGER] UDP mode - listening on {host_ip}: {port}")
     print(f"[LOGGER] Writing to {output_path}")
     print(f"[LOGGER] Press Ctrl+C to stop\n")
     print(f"[LOGGER] Waiting on ESP32 data...")
+    print(f"[LOGGER] Press Enter to mark fall event\n")
+
+    kbd_thread = threading.Thread(target=keyboard_listener, daemon=True)
+    kbd_thread.start()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(host_ip, port)
+    sock.bind((host_ip, port))
     sock.settimeout(2)
 
     sample_count = 0
@@ -102,13 +118,16 @@ def record_wifi(host_ip, port, label, duration=None):
 
                     if not line:
                         continue
-                    if line.startswith('#'):
+                    if line.startswith('#') or line.startswith('timestamp'):
                         print(f"[STM32] {line}")
                         continue
                     values = line.split(',')
                     if len(values) != 11:
-                        print(f"[WARN] Malformed packet")
+                        print(f"[WARN] Malformed packet ({len(values)} cols): '{line}'\n")
                         continue
+                    if event_flag_pending:
+                        values[10] = '1'
+                        event_flag_pending = False
 
                     writer.writerow(values)
                     sample_count += 1
@@ -124,7 +143,7 @@ def record_wifi(host_ip, port, label, duration=None):
         finally:
             sock.close()
             elapsed = time.time() - start_time
-            print(f"\n[logger] Session complete")
+            print(f"\n[LOGGGER] Session complete")
             print(f"         Samples  : {sample_count}")
             print(f"         Duration : {elapsed:.1f}s")
             print(f"         Avg rate : {sample_count / elapsed:.1f} Hz" if elapsed > 0 else "")
