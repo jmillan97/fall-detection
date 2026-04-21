@@ -4,7 +4,5 @@ __pycache__/
 *.h5
 *.pyc
 .vscode/
-data/raw/
-data/processed/
 src/sanity_check.py
 
