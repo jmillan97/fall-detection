@@ -4,54 +4,68 @@
 // ── WiFi Config ───────────────────────────────────────────
 const char* SSID      = "Router? I Hardly Know Her!";
 const char* PASSWORD  = "bubbl3z!";
-const char* LAPTOP_IP = "192.168.4.62";
-const int   UDP_PORT  = 5005;
+const char* LAPTOP_IP = "192.168.4.62";   // ← update with current laptop IP
+const int   UDP_PORT = 5005;
 
-// ── Hardware ──────────────────────────────────────────────
-#define UART_RX   16
-#define UART_TX   17
+#define UART_RX 16
+#define UART_TX 17
 
-// ── Objects ───────────────────────────────────────────────
 WiFiUDP udp;
 HardwareSerial STM32Serial(1);
 
+IPAddress laptopIP;
+uint16_t laptopPort = 0;
+bool registered = false;
+
 void setup() {
     Serial.begin(115200);
-
     STM32Serial.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
 
-    Serial.print("[ESP32] Connecting to: ");
-    Serial.println(SSID);
-
     WiFi.begin(SSID, PASSWORD);
-
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
     }
 
     Serial.println();
-    Serial.print("[ESP32] Connected. IP: ");
+    Serial.print("ESP32 IP: ");
     Serial.println(WiFi.localIP());
 
     udp.begin(UDP_PORT);
-    Serial.println("[ESP32] Ready.");
+    Serial.println("[ESP32] Waiting for registration from laptop...");
 }
 
 void loop() {
-    if (WiFi.status() != WL_CONNECTED) {
-        WiFi.reconnect();
-        while (WiFi.status() != WL_CONNECTED) {
-            delay(500);
+    // Check for registration packet from laptop
+    int packetSize = udp.parsePacket();
+    if (packetSize) {
+        char buf[256];
+        udp.read(buf, packetSize);
+        buf[packetSize] = 0;
+
+        if (String(buf).startsWith("REGISTER")) {
+            laptopIP   = udp.remoteIP();
+            laptopPort = udp.remotePort();
+            registered = true;
+            Serial.print("[ESP32] Registered laptop: ");
+            Serial.print(laptopIP);
+            Serial.print(":");
+            Serial.println(laptopPort);
+
+            // Confirm registration
+            udp.beginPacket(laptopIP, laptopPort);
+            udp.print("REGISTERED\n");
+            udp.endPacket();
         }
     }
 
-    if (STM32Serial.available()) {
+    // Forward STM32 data to registered laptop
+    if (registered && STM32Serial.available()) {
         String line = STM32Serial.readStringUntil('\n');
         line.trim();
         if (line.length() == 0) return;
 
-        udp.beginPacket(LAPTOP_IP, UDP_PORT);
+        udp.beginPacket(laptopIP, laptopPort);
         udp.print(line);
         udp.print("\n");
         udp.endPacket();

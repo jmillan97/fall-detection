@@ -80,7 +80,7 @@ def keyboard_listener():
         except Exception:
             break #was getting an error Ctrl+C to quit
 
-def record_wifi(host_ip, port, label, duration=None):
+def record_wifi(host_ip, port, label, duration=None, esp_ip=None, esp_port=5005):  # ← modified    
     global event_flag_pending
     output_path = get_output_path(label)
     print(f"[LOGGER] UDP mode - listening on {host_ip}: {port}")
@@ -94,6 +94,17 @@ def record_wifi(host_ip, port, label, duration=None):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((host_ip, port))
     sock.settimeout(2)
+    if esp_ip:                                                  # ← NEW
+        print(f"[LOGGER] Registering with ESP32 at {esp_ip}:{esp_port}")  # ← NEW
+        sock.sendto(b"REGISTER", (esp_ip, esp_port))           # ← NEW
+        try:                                                    # ← NEW
+            data, _ = sock.recvfrom(256)                       # ← NEW
+            print(f"[LOGGER] {data.decode().strip()}")         # ← NEW
+        except socket.timeout:                                  # ← NEW
+            print("[LOGGER] No response from ESP32 — check IP and power")  # ← NEW
+            sock.close()                                        # ← NEW
+            return                                              # ← NEW
+
 
     sample_count = 0
     start_time = time.time()
@@ -161,14 +172,17 @@ if __name__ == "__main__":
     parser.add_argument('--wifi', action='store_true', help='Use WiFi UDP mode instead of serial')
     parser.add_argument('--host', default='0.0.0.0', type=str, help='Host IP to listen on (wifi mode)')
     parser.add_argument('--udp-port', default=5005, type=int, help='UDP port (wifi mode)')
-    
+    parser.add_argument('--esp-ip',   default=None,  type=str, help='ESP32 IP address for registration')  # ← NEW
+    parser.add_argument('--esp-port', default=5005,  type=int, help='ESP32 UDP port')                     # ← NEW
     args = parser.parse_args()
     if args.wifi:
         record_wifi(
-            host_ip= args.host,
-            port = args.udp_port,
-            label = args.label,
-            duration = args.duration
+            host_ip  = args.host,
+            port     = args.udp_port,
+            label    = args.label,
+            duration = args.duration,
+            esp_ip   = args.esp_ip,    # ← NEW
+            esp_port = args.esp_port   # ← NEW
         )
     else:
         record(args.port, args.baud, args.label, args.duration)
