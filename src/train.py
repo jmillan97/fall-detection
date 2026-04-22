@@ -28,13 +28,13 @@ def build_model(window_size, n_channels):
     x = layers.MaxPooling1D(pool_size=2)(x)
     x = layers.Dropout(0.2)(x)
 
-    x = layers.Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(inputs)
+    x = layers.Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
     x = layers.MaxPooling1D(pool_size=2)(x)
     x = layers.Dropout(0.2)(x)
 
 
-    x = layers.Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(inputs)
+    x = layers.Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
     x = layers.GlobalAveragePooling1D()(x)
     x = layers.Dropout(0.2)(x)

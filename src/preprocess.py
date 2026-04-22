@@ -42,7 +42,7 @@ def normalize(X_train, X_test):
     scaler = StandardScaler()
 
     X_train_scaled = scaler.fit_transform(X_train_flat)
-    X_test_scaled = scaler.fit_transform(X_test_flat)
+    X_test_scaled = scaler.transform(X_test_flat)
     return (X_train_scaled.reshape(n_train, window_size, n_channels),
             X_test_scaled.reshape(n_test, window_size, n_channels),
               scaler)
@@ -75,8 +75,8 @@ def make_windows(df, session_id):
 
         window = data[start:end]
 
-        mid_start = start + int(WINDOW_SIZE * 0.25)
-        mid_end = start + int(WINDOW_SIZE * 0.75)
+        mid_start = start + int(WINDOW_SIZE * 0.10)
+        mid_end = start + int(WINDOW_SIZE * 0.90)
         label = 1 if events[mid_start:mid_end].sum() > 0 else 0
         windows.append((window, label, session_id))
     return windows
@@ -115,14 +115,14 @@ def build_dataset(data_dir="data/raw"):
 
 if __name__ == "__main__":
     X_train, X_test, Y_train, Y_test = build_dataset()
-    X_train, X_test, scaler = normalize(X_train)
+    X_train, X_test, scaler = normalize(X_train, X_test)
     
 
     os.makedirs("data/processed", exist_ok=True)
     np.save("data/processed/X_train.npy", X_train)
     np.save("data/processed/X_test.npy", X_test)
     np.save("data/processed/Y_train.npy", Y_train)
-    np.save("data/processed/X_test.npy", Y_test)
+    np.save("data/processed/Y_test.npy", Y_test)
 
     import joblib
     joblib.dump(scaler, "data/processed/scaler.pkl")
